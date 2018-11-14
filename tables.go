@@ -8,13 +8,16 @@ type Slaves struct {
 	LastAuth    int64
 }
 
-// File ...
-type File struct {
-	ID          uint `gorm:"not null;unique"`
-	name        string
-	uri         string
+// Files ...
+type Files struct {
+	ID          uint   `gorm:"not null;unique"`
+	Name        string `gorm:"unique_index:path"`
+	URL         string `gorm:"unique_index:path"`
+	URI         string `gorm:"not null;unique"`
 	CreatedTime int64
-	slave       uint
+	Size        uint
+	Slave       uint
+	IsDir       bool
 }
 
 /*
