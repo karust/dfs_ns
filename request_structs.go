@@ -10,6 +10,9 @@ type Auth struct {
 
 // FileDir ...
 type FileDir struct {
-	Name  string `json:"name"`
-	IsDir bool   `json:"isdir"`
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	CrTime int64  `json:"time"`
+	Size   uint   `json:"size"`
+	IsDir  bool   `json:"isdir"`
 }

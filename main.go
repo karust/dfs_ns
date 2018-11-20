@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +13,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/julienschmidt/httprouter"
+	"github.com/rs/cors"
 )
 
 //Storage ...
@@ -37,13 +38,13 @@ var db *gorm.DB
 
 func main() {
 	storageServers = make(map[uint]Storage)
-	storageServers[1] = Storage{LastAdr: "10.1.1.146"}
-	storageServers[2] = Storage{LastAdr: "::1"}
+	//storageServers[16] = Storage{LastAdr: "10.1.1.147"}
+	//storageServers[17] = Storage{LastAdr: "10.1.1.240"}
 
 	itemsPending = make(map[uint]ItemsPending)
 
 	db, _ = gorm.Open("sqlite3", "test.db")
-	db.AutoMigrate(&Slaves{}, &Files{})
+	db.AutoMigrate(&Slaves{}, &Files{}, &Users{})
 
 	router := httprouter.New()
 	router.POST("/dir/get", getDirFiles)
@@ -55,15 +56,21 @@ func main() {
 	router.POST("/file/manage", manageFile)
 
 	router.POST("/reg", register)
-	router.POST("/auth", authStorageServ)
+	router.POST("/auth/user", authUser)
+	router.POST("/auth/storage", authStorageServ)
 	router.POST("/storage/confirm", confirmStorage)
-	http.ListenAndServe(":8080", router)
+	router.POST("/ping", ping)
+
+	handler := cors.Default().Handler(router)
+	http.ListenAndServe(":8888", handler)
 }
 
 func confirmStorage(w http.ResponseWriter, r *http.Request,
 	_ httprouter.Params) {
 
 	tokenString := r.Header.Get("Authorization")
+	isReplicate := r.Header.Get("isrepl")
+
 	token, err := jwt.ParseWithClaims(tokenString, &Auth{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte("123"), nil
 	})
@@ -91,6 +98,7 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 				file := Files{}
 				db.Where("uri = ?", item.path).Find(&file)
 				file.Name = item.newName
+				file.URI = file.URL + item.newName
 				db.Save(&file)
 			} else if item.isDelete {
 				db.Delete(Files{}, "uri = ?", item.path)
@@ -102,25 +110,55 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 				if url == "" {
 					url = "/"
 				}
-				if item.storageID == claims.ID && !item.isDir {
-					db.Create(&Files{Name: split[splen-1],
-						URL:         url,
-						URI:         item.path,
-						Size:        item.size,
-						Slave:       item.storageID,
-						CreatedTime: time.Now().Unix(),
-						IsDir:       false})
-				} else if item.storageID == claims.ID && item.isDir {
-					db.Create(&Files{Name: split[splen-1],
-						URL:         url,
-						URI:         item.path,
-						Slave:       item.storageID,
-						CreatedTime: time.Now().Unix(),
-						IsDir:       true})
+
+				fmt.Println("WWWWWWWWWWW:", isReplicate, isReplicate == "true")
+				if isReplicate == "true" {
+					if item.storageID == claims.ID && !item.isDir {
+						file := Files{Name: split[splen-1],
+							URL:         url,
+							URI:         item.path,
+							Size:        item.size,
+							Slave:       item.storageID,
+							CreatedTime: time.Now().Unix(),
+							IsDir:       false,
+							IsMain:      false}
+						db.Create(&file)
+					} else if item.storageID == claims.ID && item.isDir {
+						dir := Files{Name: split[splen-1],
+							URL:         url,
+							URI:         item.path,
+							Slave:       item.storageID,
+							CreatedTime: time.Now().Unix(),
+							IsDir:       true,
+							IsMain:      false}
+						db.Create(&dir)
+					}
 				} else {
-					w.WriteHeader(403)
-					return
+					if item.storageID == claims.ID && !item.isDir {
+						file := Files{Name: split[splen-1],
+							URL:         url,
+							URI:         item.path,
+							Size:        item.size,
+							Slave:       item.storageID,
+							CreatedTime: time.Now().Unix(),
+							IsDir:       false,
+							IsMain:      true}
+						db.Create(&file)
+						replicate(file.ID)
+					} else if item.storageID == claims.ID && item.isDir {
+						dir := Files{Name: split[splen-1],
+							URL:         url,
+							URI:         item.path,
+							Slave:       item.storageID,
+							CreatedTime: time.Now().Unix(),
+							IsDir:       true,
+							IsMain:      true}
+						db.Create(&dir)
+						replicate(dir.ID)
+					}
 				}
+				w.WriteHeader(403)
+				return
 			}
 			delete(itemsPending, uint(fID))
 			w.WriteHeader(200)
@@ -130,62 +168,89 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(401)
 }
 
-func register(w http.ResponseWriter, r *http.Request,
-	_ httprouter.Params) {
+func replicate(ID uint) {
+	items := []Files{}
+	db.Where("id = ?", ID).Find(&items)
 
-	t := time.Now().Unix()
-	sl := &Slaves{CreatedTime: t, LastAddr: r.RemoteAddr}
-	db.Create(sl)
+	storages := make(map[uint]bool)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id": sl.ID,
-	})
-
-	tokenString, err := token.SignedString([]byte("123"))
-	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(500)
-	} else {
-		renderOk(w, struct {
-			Token string `json:"token"`
-		}{Token: tokenString})
-	}
-}
-
-func authStorageServ(w http.ResponseWriter, r *http.Request,
-	_ httprouter.Params) {
-
-	tokenString := r.Header.Get("Authorization")
-
-	token, err := jwt.ParseWithClaims(tokenString, &Auth{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte("123"), nil
-	})
-	if err != nil {
-		fmt.Println("1)", err)
-		w.WriteHeader(401)
-		return
+	// Get Slaves where item stored
+	for _, s := range items {
+		storages[s.Slave] = true
 	}
 
-	if claims, ok := token.Claims.(*Auth); ok && token.Valid {
-		slave := Slaves{}
-		db.Where("id = ?", claims.ID).Find(&slave)
-		if slave.ID == 0 {
-			w.WriteHeader(401)
-			return
+	// Find IP of server with this file
+	stIP := "0.0.0.0"
+	for i, s := range storageServers {
+		if storages[i] == true {
+			stIP = s.LastAdr
+			continue
 		}
-		slave.ID = claims.ID
-		slave.LastAddr, _, _ = net.SplitHostPort(r.RemoteAddr)
-		slave.LastAuth = time.Now().Unix()
-		fmt.Println(slave)
-		db.Save(&slave)
+	}
 
-		storage := Storage{LastAdr: slave.LastAddr}
-		storageServers[claims.ID] = storage
-		w.WriteHeader(200)
-		fmt.Println(storageServers)
-	} else {
-		fmt.Println("2)", err)
-		w.WriteHeader(401)
+	if len(storages) <= 1 {
+		if items[0].IsDir {
+			id := uint(0)
+			for ; id < 100; id++ {
+				if _, exist := itemsPending[id]; !exist {
+					break
+				}
+			}
+
+			for i, s := range storageServers {
+				if _, ok := storages[i]; ok {
+					continue
+				} else {
+					val := itemsPending[id]
+					val.storageID = i
+					val.path = items[0].URI
+					val.isDir = true
+					itemsPending[id] = val
+
+					ID := strconv.Itoa(int(id))
+					resp, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/createfolder",
+						url.Values{"path": {items[0].URL}, "name": {items[0].Name}, "id": {ID}, "isrepl": {"true"}})
+					if err != nil {
+						fmt.Println("Response err:", err)
+						continue
+					}
+					fmt.Println("Response", resp)
+					return
+				}
+			}
+
+		} else {
+			id := uint(0)
+			for ; id < 100; id++ {
+				if _, exist := itemsPending[id]; !exist {
+					break
+				}
+			}
+
+			for i, s := range storageServers {
+				if _, ok := storages[i]; ok {
+					continue
+				} else {
+					location := "http://" + stIP + ":8080/api/files/download?path=" + items[0].URI
+					val := itemsPending[id]
+					val.storageID = i
+					val.path = items[0].URI
+					val.size = items[0].Size
+					val.isDir = false
+					itemsPending[id] = val
+
+					ID := strconv.Itoa(int(id))
+					resp, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/synchronize",
+						url.Values{"path": {items[0].URL}, "url": {location}, "id": {ID}, "isrepl": {"true"}})
+					if err != nil {
+						fmt.Println("Response err:", err)
+						continue
+					}
+					fmt.Println("Response", resp)
+					return
+				}
+			}
+		}
 	}
 }
 

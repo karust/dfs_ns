@@ -10,29 +10,21 @@ type Slaves struct {
 
 // Files ...
 type Files struct {
-	ID          uint   `gorm:"not null;unique"`
-	Name        string `gorm:"unique_index:path"`
-	URL         string `gorm:"unique_index:path"`
-	URI         string `gorm:"not null;unique"`
+	ID          uint `gorm:"not null;unique"`
+	Name        string
+	URL         string
+	URI         string `gorm:"unique_index:replica"`
 	CreatedTime int64
 	Size        uint
-	Slave       uint
+	Slave       uint `gorm:"unique_index:replica"`
 	IsDir       bool
+	IsMain      bool
 }
 
-/*
-type Group struct {
-	//gorm.Model
-	ID         uint
-	Name       string `gorm:"not null;unique"`
-	AdminID    uint   `gorm:"not null"`
-	MembersNum uint32
+// Users ... Users table
+type Users struct {
+	ID          uint `gorm:"not null;unique"`
+	Login       string
+	CreatedTime int64
+	Pass        string
 }
-
-type GroupMemebers struct {
-	//gorm.Model
-	ID  uint
-	UID uint `gorm:"unique_index:UGID"`
-	GID uint `gorm:"unique_index:UGID"`
-}
-*/

@@ -12,13 +12,15 @@ import (
 func createDir(w http.ResponseWriter, r *http.Request,
 	_ httprouter.Params) {
 	path := r.FormValue("path")
+	//uid := r.FormValue("uid")
 
 	for stID, st := range storageServers {
 		// ?? Check if storage can accept this directory
 		resp, err := http.PostForm("http://"+st.LastAdr+":8080/api/files/isexist",
 			url.Values{"path": {path}, "size": {"0"}})
 		if err != nil {
-			//fmt.Println("createDir:", err)
+			// TODO: if dir exists send response to client
+			fmt.Println("createDir:", err)
 			continue
 		}
 
@@ -39,7 +41,7 @@ func createDir(w http.ResponseWriter, r *http.Request,
 				IP string `json:"ip"`
 				ID uint   `json:"id"`
 			}{IP: st.LastAdr + ":8080", ID: id})
-			fmt.Println(itemsPending)
+			fmt.Println("Items pending", itemsPending)
 			return
 		}
 	}
@@ -50,18 +52,21 @@ func createDir(w http.ResponseWriter, r *http.Request,
 func getDirFiles(w http.ResponseWriter, r *http.Request,
 	_ httprouter.Params) {
 	path := r.FormValue("path")
-	fmt.Println("Path:", path)
+	//uid := r.FormValue("uid")
 
 	items := []Files{}
 	db.Where("url = ?", path).Find(&items)
-	fmt.Println(items)
+	//fmt.Println(items)
 
 	resp := []FileDir{}
 	for _, item := range items {
-		resp = append(resp, FileDir{Name: item.Name, IsDir: item.IsDir})
+		if item.IsMain {
+			resp = append(resp, FileDir{Name: item.Name, Path: item.URI, Size: item.Size,
+				CrTime: item.CreatedTime, IsDir: item.IsDir})
+		}
 	}
 
-	fmt.Println(resp)
+	//fmt.Println(resp)
 	renderOk(w, struct {
 		Items []FileDir `json:"items"`
 	}{Items: resp})
@@ -73,6 +78,7 @@ func manageDir(w http.ResponseWriter, r *http.Request,
 	path := r.FormValue("path")
 	isDelete := r.FormValue("delete")
 	newName := r.FormValue("new_name")
+	//uid := r.FormValue("uid")
 
 	item := Files{}
 	db.Where("uri = ?", path).Find(&item)
@@ -110,6 +116,5 @@ func manageDir(w http.ResponseWriter, r *http.Request,
 		IP string `json:"ip"`
 		ID uint   `json:"id"`
 	}{IP: storageServers[item.Slave].LastAdr + ":8080", ID: id})
-	fmt.Println(itemsPending)
 	return
 }
