@@ -41,7 +41,7 @@ func createDir(w http.ResponseWriter, r *http.Request,
 				IP string `json:"ip"`
 				ID uint   `json:"id"`
 			}{IP: st.LastAdr + ":8080", ID: id})
-			fmt.Println("Items pending", itemsPending)
+			//fmt.Println("Items pending", itemsPending)
 			return
 		}
 	}

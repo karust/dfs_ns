@@ -111,7 +111,7 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 					url = "/"
 				}
 
-				fmt.Println("WWWWWWWWWWW:", isReplicate, isReplicate == "true")
+				//fmt.Println("WWWWWWWWWWW:", isReplicate, isReplicate == "true")
 				if isReplicate == "true" {
 					if item.storageID == claims.ID && !item.isDir {
 						file := Files{Name: split[splen-1],
@@ -208,13 +208,13 @@ func replicate(ID uint) {
 					itemsPending[id] = val
 
 					ID := strconv.Itoa(int(id))
-					resp, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/createfolder",
+					_, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/createfolder",
 						url.Values{"path": {items[0].URL}, "name": {items[0].Name}, "id": {ID}, "isrepl": {"true"}})
 					if err != nil {
 						fmt.Println("Response err:", err)
 						continue
 					}
-					fmt.Println("Response", resp)
+					//fmt.Println("Response", resp)
 					return
 				}
 			}
@@ -240,13 +240,13 @@ func replicate(ID uint) {
 					itemsPending[id] = val
 
 					ID := strconv.Itoa(int(id))
-					resp, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/synchronize",
+					_, err := http.PostForm("http://"+s.LastAdr+":8080/api/files/synchronize",
 						url.Values{"path": {items[0].URL}, "url": {location}, "id": {ID}, "isrepl": {"true"}})
 					if err != nil {
 						fmt.Println("Response err:", err)
 						continue
 					}
-					fmt.Println("Response", resp)
+					//fmt.Println("Response", resp)
 					return
 				}
 			}

@@ -59,11 +59,11 @@ func getFile(w http.ResponseWriter, r *http.Request,
 	path := r.FormValue("path")
 	info := r.FormValue("info")
 	//uid := r.FormValue("uid")
-
+	//fmt.Println("PATH", path)
 	items := []Files{}
 	db.Where("uri = ?", path).Find(&items)
 	fmt.Println(items)
-	if items[0].URI == "" {
+	if len(items) == 0 || items[0].URI == "" {
 		w.WriteHeader(404)
 		return
 	}
