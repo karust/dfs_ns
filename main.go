@@ -82,7 +82,9 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 
 	if claims, ok := token.Claims.(*Auth); ok && token.Valid {
 		if _, exist := storageServers[claims.ID]; exist {
+
 			itemID := r.Header.Get("id")
+
 			fID, err := strconv.Atoi(itemID)
 			if err != nil {
 				w.WriteHeader(501)
@@ -94,14 +96,31 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 			}
 
 			item := itemsPending[uint(fID)]
+
 			if item.newName != "" {
-				file := Files{}
-				db.Where("uri = ?", item.path).Find(&file)
-				file.Name = item.newName
-				file.URI = file.URL + item.newName
-				db.Save(&file)
+				files := []Files{}      // files to rename
+				slaveFiles := []Files{} // file that contains in renaming files
+
+				db.Where("uri = ?", item.path).Find(&files)
+				db.Where("url = ?", item.path).Find(&slaveFiles)
+				newURI := ""
+				for _, file := range files {
+					newURI = file.URL + item.newName
+					file.Name = item.newName
+					file.URI = newURI
+
+					db.Save(&file)
+				}
+
+				for _, file := range slaveFiles {
+					file.URL = newURI
+					file.URI = newURI + "/" + file.Name
+					db.Save(&file)
+				}
+
 			} else if item.isDelete {
-				db.Delete(Files{}, "uri = ?", item.path)
+				db.Where("uri = ?", item.path).Delete(Files{})
+				db.Where("url = ?", item.path).Delete(Files{})
 
 			} else {
 				split := strings.Split(item.path, "/")
@@ -133,6 +152,8 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 							IsMain:      false}
 						db.Create(&dir)
 					}
+					w.WriteHeader(200)
+					return
 				} else {
 					if item.storageID == claims.ID && !item.isDir {
 						file := Files{Name: split[splen-1],
@@ -156,6 +177,8 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 						db.Create(&dir)
 						replicate(dir.ID)
 					}
+					w.WriteHeader(200)
+					return
 				}
 				w.WriteHeader(403)
 				return
@@ -165,6 +188,7 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	}
+
 	w.WriteHeader(401)
 }
 
@@ -189,6 +213,9 @@ func replicate(ID uint) {
 	}
 
 	if len(storages) <= 1 {
+		if len(items) == 0 {
+			return
+		}
 		if items[0].IsDir {
 			id := uint(0)
 			for ; id < 100; id++ {

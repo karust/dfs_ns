@@ -83,11 +83,11 @@ func authStorageServ(w http.ResponseWriter, r *http.Request, _ httprouter.Params
 		//	w.WriteHeader(401)
 		//	return
 		//}
-		fmt.Println("IP", r.RemoteAddr)
+		fmt.Println("[NEW_CONN]", r.RemoteAddr)
 		slave.ID = claims.ID
 		slave.LastAddr, _, _ = net.SplitHostPort(r.RemoteAddr)
 		slave.LastAuth = time.Now().Unix()
-		fmt.Println(slave)
+		//fmt.Println(slave)
 		db.Save(&slave)
 
 		storage := Storage{LastAdr: slave.LastAddr}
@@ -97,7 +97,7 @@ func authStorageServ(w http.ResponseWriter, r *http.Request, _ httprouter.Params
 			UID uint `json:"uid"`
 		}{UID: slave.ID})
 		//w.WriteHeader(200)
-		fmt.Println(storageServers)
+		fmt.Println("[CURR_STORAGES]", storageServers)
 	} else {
 		fmt.Println("2)", err)
 		w.WriteHeader(401)

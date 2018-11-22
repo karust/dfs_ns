@@ -23,7 +23,7 @@ func createFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 			fmt.Println("getFile:", err)
 			continue
 		}
-		fmt.Println(resp)
+		//fmt.Println(resp)
 		// If some server responds OK, place file in waiting queue
 		if resp.StatusCode == 200 {
 			id := uint(0)
@@ -62,7 +62,7 @@ func getFile(w http.ResponseWriter, r *http.Request,
 	//fmt.Println("PATH", path)
 	items := []Files{}
 	db.Where("uri = ?", path).Find(&items)
-	fmt.Println(items)
+	//fmt.Println(items)
 	if len(items) == 0 || items[0].URI == "" {
 		w.WriteHeader(404)
 		return
@@ -129,7 +129,7 @@ func manageFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		w.WriteHeader(406)
 		return
 	}
-	fmt.Println("LastADDR", item.Slave, storageServers[item.Slave].LastAdr+":8080")
+	//fmt.Println("LastADDR", item.Slave, storageServers[item.Slave].LastAdr+":8080")
 	renderOk(w, struct {
 		IP string `json:"ip"`
 		ID uint   `json:"id"`
