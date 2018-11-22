@@ -100,7 +100,7 @@ func manageFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	item := Files{}
 	db.Where("uri = ?", path).Find(&item)
-
+	fmt.Println("path:", path)
 	//adr := storageServers[item.Slave].LastAdr
 	id := uint(0)
 	if isDelete == "true" {

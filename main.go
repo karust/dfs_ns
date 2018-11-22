@@ -105,7 +105,11 @@ func confirmStorage(w http.ResponseWriter, r *http.Request,
 				db.Where("url = ?", item.path).Find(&slaveFiles)
 				newURI := ""
 				for _, file := range files {
-					newURI = file.URL + item.newName
+					if file.URL != "/" {
+						newURI = file.URL + "/" + item.newName
+					} else {
+						newURI = file.URL + item.newName
+					}
 					file.Name = item.newName
 					file.URI = newURI
 
